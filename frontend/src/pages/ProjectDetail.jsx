@@ -28,6 +28,10 @@ export default function ProjectDetail() {
   });
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [addMemberIds, setAddMemberIds] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [myPendingByTask, setMyPendingByTask] = useState({});
+  const [requestStatusByTask, setRequestStatusByTask] = useState({});
+  const [successMsg, setSuccessMsg] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -38,14 +42,27 @@ export default function ProjectDetail() {
 
       const taskRes = await api.getTasks(id);
       setTasks(taskRes.tasks);
+
       if (isAdmin) {
-        const memRes = await api.getMembers();
+        const [memRes, reqRes] = await Promise.all([
+          api.getMembers(),
+          api.getPendingStatusRequests(id),
+        ]);
         const projectMemberIds = new Set(
           (projRes.project.members || []).map((m) => (m._id || m).toString())
         );
         setMembers(
           (memRes.users || []).filter((m) => !projectMemberIds.has((m.id || m._id).toString()))
         );
+        setPendingRequests(reqRes.requests || []);
+      } else {
+        const reqRes = await api.getMyStatusRequests(id);
+        const byTask = {};
+        for (const r of reqRes.requests || []) {
+          const taskId = r.task?._id || r.task;
+          byTask[taskId] = r;
+        }
+        setMyPendingByTask(byTask);
       }
     } catch (err) {
       setError(err.message);
@@ -76,12 +93,54 @@ export default function ProjectDetail() {
 
   const handleStatusChange = async (taskId, status) => {
     try {
+      setError('');
       await api.updateTask(taskId, { status });
+      setSuccessMsg('Task status updated.');
       load();
     } catch (err) {
       setError(err.message);
     }
   };
+
+  const handleRequestStatusChange = async (taskId) => {
+    const requestedStatus = requestStatusByTask[taskId];
+    if (!requestedStatus) {
+      setError('Select a status to request.');
+      return;
+    }
+    try {
+      setError('');
+      await api.submitStatusRequest(taskId, requestedStatus);
+      setSuccessMsg('Status change request sent to admin for approval.');
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleApproveRequest = async (requestId) => {
+    try {
+      setError('');
+      await api.approveStatusRequest(requestId);
+      setSuccessMsg('Request approved. Task status updated.');
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    try {
+      setError('');
+      await api.rejectStatusRequest(requestId);
+      setSuccessMsg('Request rejected.');
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const statusLabel = (s) => STATUSES.find((x) => x.value === s)?.label || s;
 
   const handleDeleteTask = async (taskId) => {
     if (!window.confirm('Delete this task?')) return;
@@ -165,6 +224,51 @@ export default function ProjectDetail() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+      {successMsg && (
+        <div className="alert alert-success">
+          {successMsg}
+          <button type="button" className="alert-dismiss" onClick={() => setSuccessMsg('')}>
+            ×
+          </button>
+        </div>
+      )}
+
+      {isAdmin && pendingRequests.length > 0 && (
+        <div className="card pending-requests-card">
+          <h2 className="section-title">Pending status requests ({pendingRequests.length})</h2>
+          <ul className="pending-requests-list">
+            {pendingRequests.map((r) => (
+              <li key={r._id} className="pending-request-item">
+                <div>
+                  <strong>{r.task?.title || 'Task'}</strong>
+                  <span className="request-flow">
+                    {statusLabel(r.currentStatus)} → {statusLabel(r.requestedStatus)}
+                  </span>
+                  <span className="request-meta">
+                    by {r.requestedBy?.name} · {new Date(r.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="request-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleApproveRequest(r._id)}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleRejectRequest(r._id)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="detail-grid">
         <div className="card">
@@ -299,11 +403,12 @@ export default function ProjectDetail() {
                     </span>
                   </div>
                   <div className="task-card-actions">
-                    {canEditTask(t) && (
+                    {isAdmin && canEditTask(t) && (
                       <select
                         value={t.status}
                         onChange={(e) => handleStatusChange(t._id, e.target.value)}
                         className="status-select"
+                        title="Admin: update status directly"
                       >
                         {STATUSES.map((s) => (
                           <option key={s.value} value={s.value}>
@@ -311,6 +416,45 @@ export default function ProjectDetail() {
                           </option>
                         ))}
                       </select>
+                    )}
+                    {!isAdmin && canEditTask(t) && (
+                      <div className="member-status-request">
+                        {myPendingByTask[t._id] ? (
+                          <span className="badge badge-pending">
+                            Pending approval: {statusLabel(myPendingByTask[t._id].requestedStatus)}
+                          </span>
+                        ) : (
+                          <>
+                            <select
+                              value={requestStatusByTask[t._id] || t.status}
+                              onChange={(e) =>
+                                setRequestStatusByTask((prev) => ({
+                                  ...prev,
+                                  [t._id]: e.target.value,
+                                }))
+                              }
+                              className="status-select"
+                              disabled={!!myPendingByTask[t._id]}
+                            >
+                              {STATUSES.map((s) => (
+                                <option key={s.value} value={s.value}>
+                                  {s.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={
+                                (requestStatusByTask[t._id] || t.status) === t.status
+                              }
+                              onClick={() => handleRequestStatusChange(t._id)}
+                            >
+                              Request change
+                            </button>
+                          </>
+                        )}
+                      </div>
                     )}
                     {isAdmin && (
                       <button

@@ -184,3 +184,77 @@
   color: var(--text);
   font-size: 0.85rem;
 }
+
+.member-status-request {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge-pending {
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--primary);
+  font-size: 0.75rem;
+}
+
+.pending-requests-card {
+  margin-bottom: 1.25rem;
+}
+
+.pending-requests-list {
+  list-style: none;
+}
+
+.pending-request-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pending-request-item:last-child {
+  border-bottom: none;
+}
+
+.request-flow {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--warning);
+  margin-top: 0.2rem;
+}
+
+.request-meta {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.request-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.alert-success {
+  position: relative;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.alert-dismiss {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}

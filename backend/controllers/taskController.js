@@ -108,14 +108,17 @@ export const updateTask = async (req, res) => {
         task.assignedTo = assignedTo || null;
       }
       if (status) task.status = status;
+    } else if (isAssignee && status) {
+      return res.status(403).json({
+        success: false,
+        message:
+          'Members cannot change task status directly. Submit a status change request for admin approval.',
+      });
     } else if (isAssignee) {
-      if (status) task.status = status;
-      else {
-        return res.status(403).json({
-          success: false,
-          message: 'Members can only update status on assigned tasks',
-        });
-      }
+      return res.status(403).json({
+        success: false,
+        message: 'Members cannot update task details. Use status change requests for progress updates.',
+      });
     } else {
       return res.status(403).json({ success: false, message: 'Not allowed to update this task' });
     }

@@ -9,7 +9,7 @@
 param(
   [string]$Token = $env:GITHUB_TOKEN,
   [string]$User = "Rishabhhraj",
-  [string]$Repo = "team-task-manager"
+  [string]$Repo = "EtharaAIProject"
 )
 
 $ErrorActionPreference = "Stop"

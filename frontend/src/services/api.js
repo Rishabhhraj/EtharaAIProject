@@ -53,5 +53,21 @@ export const api = {
     request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 
+  getPendingStatusRequests: (projectId) =>
+    request(`/status-requests/project/${projectId}/pending`),
+  getMyStatusRequests: (projectId) => request(`/status-requests/project/${projectId}`),
+  submitStatusRequest: (taskId, requestedStatus) =>
+    request(`/status-requests/task/${taskId}`, {
+      method: 'POST',
+      body: JSON.stringify({ requestedStatus }),
+    }),
+  approveStatusRequest: (id) =>
+    request(`/status-requests/${id}/approve`, { method: 'PATCH' }),
+  rejectStatusRequest: (id, reviewNote) =>
+    request(`/status-requests/${id}/reject`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reviewNote }),
+    }),
+
   getMembers: () => request('/users/members'),
 };
