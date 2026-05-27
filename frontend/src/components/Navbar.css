@@ -17,15 +17,12 @@
 .navbar-brand {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-weight: 700;
-  font-size: 1.05rem;
   color: var(--text);
+  text-decoration: none;
 }
 
-.brand-icon {
+.navbar-brand:hover .logo-text {
   color: var(--primary);
-  font-size: 1.1rem;
 }
 
 .navbar-links {
@@ -52,6 +49,12 @@
 .user-name {
   font-size: 0.9rem;
   font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.user-name:hover {
+  color: var(--primary);
 }
 
 .role-hint {

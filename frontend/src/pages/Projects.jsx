@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import Layout from '../components/Layout';
 
 export default function Projects() {
   const { isAdmin } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
   const [error, setError] = useState('');
@@ -23,7 +25,10 @@ export default function Projects() {
         setProjects(projRes.projects);
         setMembers(memRes.users || []);
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        setError(err.message);
+        showError(err.message);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -47,9 +52,10 @@ export default function Projects() {
       await api.createProject(form);
       setForm({ name: '', description: '', memberIds: [] });
       setShowForm(false);
+      showSuccess('Project created');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
@@ -57,9 +63,10 @@ export default function Projects() {
     if (!window.confirm('Delete this project and all its tasks?')) return;
     try {
       await api.deleteProject(id);
+      showSuccess('Project deleted');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
@@ -142,6 +149,9 @@ export default function Projects() {
               <div className="project-card-top">
                 <h3>
                   <Link to={`/projects/${p._id}`}>{p.name}</Link>
+                  {p.status === 'archived' && (
+                    <span className="badge badge-archived"> Archived</span>
+                  )}
                 </h3>
                 {isAdmin && (
                   <button

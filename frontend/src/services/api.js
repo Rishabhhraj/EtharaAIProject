@@ -2,6 +2,15 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const getToken = () => localStorage.getItem('token');
 
+const handleUnauthorized = () => {
+  localStorage.removeItem('token');
+  const path = window.location.pathname;
+  if (!path.startsWith('/login') && !path.startsWith('/signup')) {
+    const params = new URLSearchParams({ session: 'expired' });
+    window.location.href = `/login?${params.toString()}`;
+  }
+};
+
 async function request(endpoint, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -18,6 +27,15 @@ async function request(endpoint, options = {}) {
 
   const data = await res.json().catch(() => ({}));
 
+  if (res.status === 401) {
+    const isAuthRoute = endpoint.startsWith('/auth/login') || endpoint.startsWith('/auth/register');
+    if (!isAuthRoute) {
+      handleUnauthorized();
+    }
+    const msg = data.message || 'Session expired. Please log in again.';
+    throw new Error(msg);
+  }
+
   if (!res.ok) {
     const msg = data.message || data.errors?.[0]?.message || 'Request failed';
     throw new Error(msg);
@@ -30,6 +48,7 @@ export const api = {
   register: (body) => request('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   getMe: () => request('/auth/me'),
+  getProfile: () => request('/auth/profile'),
 
   getDashboard: () => request('/dashboard'),
   getProjects: () => request('/projects'),
@@ -70,4 +89,15 @@ export const api = {
     }),
 
   getMembers: () => request('/users/members'),
+
+  getNotifications: () => request('/notifications'),
+  markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () => request('/notifications/read-all', { method: 'PATCH' }),
+
+  getTaskComments: (taskId) => request(`/comments/task/${taskId}`),
+  addTaskComment: (taskId, text) =>
+    request(`/comments/task/${taskId}`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
 };

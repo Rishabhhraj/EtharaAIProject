@@ -1,6 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { register, login, getMe } from '../controllers/authController.js';
+import { register, login, getMe, getProfile } from '../controllers/authController.js';
 import { protect } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
@@ -12,7 +12,7 @@ router.post(
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('Valid email is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('role').optional().isIn(['admin', 'member']).withMessage('Role must be admin or member'),
+    body('adminInviteCode').optional().trim(),
   ],
   validate,
   register
@@ -29,5 +29,6 @@ router.post(
 );
 
 router.get('/me', protect, getMe);
+router.get('/profile', protect, getProfile);
 
 export default router;

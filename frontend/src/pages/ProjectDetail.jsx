@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import Layout from '../components/Layout';
+import TaskComments from '../components/TaskComments';
 import './ProjectDetail.css';
 
 const STATUSES = [
@@ -11,9 +13,16 @@ const STATUSES = [
   { value: 'done', label: 'Done' },
 ];
 
+const PRIORITIES = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
+
 export default function ProjectDetail() {
   const { id } = useParams();
   const { user, isAdmin } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [members, setMembers] = useState([]);
@@ -24,6 +33,7 @@ export default function ProjectDetail() {
     description: '',
     assignedTo: '',
     status: 'todo',
+    priority: 'medium',
     dueDate: '',
   });
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -31,7 +41,9 @@ export default function ProjectDetail() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [myPendingByTask, setMyPendingByTask] = useState({});
   const [requestStatusByTask, setRequestStatusByTask] = useState({});
-  const [successMsg, setSuccessMsg] = useState('');
+
+  const isArchived = project?.status === 'archived';
+  const readOnly = isArchived;
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +78,7 @@ export default function ProjectDetail() {
       }
     } catch (err) {
       setError(err.message);
+      showError(err.message);
     } finally {
       setLoading(false);
     }
@@ -83,60 +96,88 @@ export default function ProjectDetail() {
         assignedTo: taskForm.assignedTo || undefined,
         dueDate: taskForm.dueDate || undefined,
       });
-      setTaskForm({ title: '', description: '', assignedTo: '', status: 'todo', dueDate: '' });
+      setTaskForm({
+        title: '',
+        description: '',
+        assignedTo: '',
+        status: 'todo',
+        priority: 'medium',
+        dueDate: '',
+      });
       setShowTaskForm(false);
+      showSuccess('Task created');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
   const handleStatusChange = async (taskId, status) => {
     try {
-      setError('');
       await api.updateTask(taskId, { status });
-      setSuccessMsg('Task status updated.');
+      showSuccess('Task status updated');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
+    }
+  };
+
+  const handlePriorityChange = async (taskId, priority) => {
+    try {
+      await api.updateTask(taskId, { priority });
+      showSuccess('Task priority updated');
+      load();
+    } catch (err) {
+      showError(err.message);
     }
   };
 
   const handleRequestStatusChange = async (taskId) => {
     const requestedStatus = requestStatusByTask[taskId];
     if (!requestedStatus) {
-      setError('Select a status to request.');
+      showError('Select a status to request');
       return;
     }
     try {
-      setError('');
       await api.submitStatusRequest(taskId, requestedStatus);
-      setSuccessMsg('Status change request sent to admin for approval.');
+      showSuccess('Status change request sent to admin');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
   const handleApproveRequest = async (requestId) => {
     try {
-      setError('');
       await api.approveStatusRequest(requestId);
-      setSuccessMsg('Request approved. Task status updated.');
+      showSuccess('Request approved');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
   const handleRejectRequest = async (requestId) => {
+    if (!window.confirm('Reject this status change request?')) return;
     try {
-      setError('');
       await api.rejectStatusRequest(requestId);
-      setSuccessMsg('Request rejected.');
+      showSuccess('Request rejected');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
+    }
+  };
+
+  const handleToggleArchive = async () => {
+    const next = isArchived ? 'active' : 'archived';
+    const label = next === 'archived' ? 'archive' : 'restore';
+    if (!window.confirm(`${label} this project?`)) return;
+    try {
+      await api.updateProject(id, { status: next });
+      showSuccess(next === 'archived' ? 'Project archived (read-only)' : 'Project restored');
+      load();
+    } catch (err) {
+      showError(err.message);
     }
   };
 
@@ -146,9 +187,10 @@ export default function ProjectDetail() {
     if (!window.confirm('Delete this task?')) return;
     try {
       await api.deleteTask(taskId);
+      showSuccess('Task deleted');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
@@ -157,24 +199,30 @@ export default function ProjectDetail() {
     try {
       await api.addMembers(id, addMemberIds);
       setAddMemberIds([]);
+      showSuccess('Members added');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
   const handleRemoveMember = async (memberId) => {
+    if (!window.confirm('Remove this member from the project?')) return;
     try {
       await api.removeMember(id, memberId);
+      showSuccess('Member removed');
       load();
     } catch (err) {
-      setError(err.message);
+      showError(err.message);
     }
   };
 
   const teamOptions = () => {
     const list = [...(project?.members || [])];
-    if (project?.createdBy && !list.find((m) => (m._id || m).toString() === project.createdBy._id?.toString())) {
+    if (
+      project?.createdBy &&
+      !list.find((m) => (m._id || m).toString() === project.createdBy._id?.toString())
+    ) {
       list.unshift(project.createdBy);
     }
     return list;
@@ -213,27 +261,41 @@ export default function ProjectDetail() {
           <Link to="/projects" className="back-link">
             ← Projects
           </Link>
-          <h1>{project.name}</h1>
+          <h1>
+            {project.name}{' '}
+            {isArchived && <span className="badge badge-archived">Archived</span>}
+          </h1>
           <p>{project.description || 'No description'}</p>
         </div>
-        {isAdmin && (
-          <button type="button" className="btn btn-primary" onClick={() => setShowTaskForm(!showTaskForm)}>
-            {showTaskForm ? 'Cancel' : '+ Add Task'}
-          </button>
-        )}
+        <div className="page-header-actions">
+          {isAdmin && (
+            <>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleToggleArchive}>
+                {isArchived ? 'Restore project' : 'Archive project'}
+              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setShowTaskForm(!showTaskForm)}
+                >
+                  {showTaskForm ? 'Cancel' : '+ Add Task'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
-      {successMsg && (
-        <div className="alert alert-success">
-          {successMsg}
-          <button type="button" className="alert-dismiss" onClick={() => setSuccessMsg('')}>
-            ×
-          </button>
+      {isArchived && (
+        <div className="alert alert-error archived-banner">
+          This project is archived and read-only. Restore it to make changes.
         </div>
       )}
 
-      {isAdmin && pendingRequests.length > 0 && (
+      {error && <div className="alert alert-error">{error}</div>}
+
+      {isAdmin && pendingRequests.length > 0 && !readOnly && (
         <div className="card pending-requests-card">
           <h2 className="section-title">Pending status requests ({pendingRequests.length})</h2>
           <ul className="pending-requests-list">
@@ -282,7 +344,7 @@ export default function ProjectDetail() {
               <li key={m._id}>
                 <span>{m.name}</span>
                 <span className="badge badge-member">member</span>
-                {isAdmin && (
+                {isAdmin && !readOnly && (
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
@@ -294,7 +356,7 @@ export default function ProjectDetail() {
               </li>
             ))}
           </ul>
-          {isAdmin && (
+          {isAdmin && !readOnly && (
             <div className="add-members">
               <p className="add-members-label">Add members to this project</p>
               {members.length > 0 ? (
@@ -321,8 +383,7 @@ export default function ProjectDetail() {
                 </>
               ) : (
                 <p className="empty-hint">
-                  Everyone is already on the team, or no other members exist. New users must sign up
-                  with role <strong>Member</strong> first.
+                  Everyone is already on the team, or no other members exist.
                 </p>
               )}
             </div>
@@ -332,7 +393,7 @@ export default function ProjectDetail() {
         <div className="card tasks-panel">
           <h2 className="section-title">Tasks ({tasks.length})</h2>
 
-          {showTaskForm && isAdmin && (
+          {showTaskForm && isAdmin && !readOnly && (
             <form className="task-form" onSubmit={handleCreateTask}>
               <div className="form-group">
                 <label>Title</label>
@@ -366,6 +427,19 @@ export default function ProjectDetail() {
                   </select>
                 </div>
                 <div className="form-group">
+                  <label>Priority</label>
+                  <select
+                    value={taskForm.priority}
+                    onChange={(e) => setTaskForm((f) => ({ ...f, priority: e.target.value }))}
+                  >
+                    {PRIORITIES.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
                   <label>Due date</label>
                   <input
                     type="date"
@@ -389,6 +463,9 @@ export default function ProjectDetail() {
                   <div className="task-card-head">
                     <strong>{t.title}</strong>
                     <div className="task-badges">
+                      <span className={`badge badge-${t.priority || 'medium'}`}>
+                        {t.priority || 'medium'}
+                      </span>
                       <span className={`badge badge-${t.status}`}>
                         {t.status.replace('_', ' ')}
                       </span>
@@ -403,21 +480,37 @@ export default function ProjectDetail() {
                     </span>
                   </div>
                   <div className="task-card-actions">
-                    {isAdmin && canEditTask(t) && (
-                      <select
-                        value={t.status}
-                        onChange={(e) => handleStatusChange(t._id, e.target.value)}
-                        className="status-select"
-                        title="Admin: update status directly"
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s.value} value={s.value}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </select>
+                    {isAdmin && !readOnly && (
+                      <>
+                        <select
+                          value={t.priority || 'medium'}
+                          onChange={(e) => handlePriorityChange(t._id, e.target.value)}
+                          className="status-select priority-select"
+                          title="Change task priority"
+                          aria-label={`Priority for ${t.title}`}
+                        >
+                          {PRIORITIES.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={t.status}
+                          onChange={(e) => handleStatusChange(t._id, e.target.value)}
+                          className="status-select"
+                          title="Admin: update status directly"
+                          aria-label={`Status for ${t.title}`}
+                        >
+                          {STATUSES.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                      </>
                     )}
-                    {!isAdmin && canEditTask(t) && (
+                    {!isAdmin && canEditTask(t) && !readOnly && (
                       <div className="member-status-request">
                         {myPendingByTask[t._id] ? (
                           <span className="badge badge-pending">
@@ -434,7 +527,6 @@ export default function ProjectDetail() {
                                 }))
                               }
                               className="status-select"
-                              disabled={!!myPendingByTask[t._id]}
                             >
                               {STATUSES.map((s) => (
                                 <option key={s.value} value={s.value}>
@@ -445,9 +537,7 @@ export default function ProjectDetail() {
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
-                              disabled={
-                                (requestStatusByTask[t._id] || t.status) === t.status
-                              }
+                              disabled={(requestStatusByTask[t._id] || t.status) === t.status}
                               onClick={() => handleRequestStatusChange(t._id)}
                             >
                               Request change
@@ -456,7 +546,7 @@ export default function ProjectDetail() {
                         )}
                       </div>
                     )}
-                    {isAdmin && (
+                    {isAdmin && !readOnly && (
                       <button
                         type="button"
                         className="btn btn-danger btn-sm"
@@ -466,6 +556,7 @@ export default function ProjectDetail() {
                       </button>
                     )}
                   </div>
+                  <TaskComments taskId={t._id} readOnly={readOnly} />
                 </li>
               ))}
             </ul>

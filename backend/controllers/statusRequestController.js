@@ -2,6 +2,8 @@ import StatusChangeRequest from '../models/StatusChangeRequest.js';
 import Task from '../models/Task.js';
 import Project from '../models/Project.js';
 import { userCanAccessProject, userIsProjectAdmin, toIdString } from '../utils/projectAccess.js';
+import { rejectIfArchived } from '../utils/projectArchived.js';
+import { createNotification } from '../utils/notify.js';
 
 const populateRequest = (query) =>
   query
@@ -18,10 +20,11 @@ export const createStatusRequest = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Task not found' });
     }
 
-    const project = task.project;
+    const project = await Project.findById(task.project._id || task.project);
     if (!userCanAccessProject(project, req.user._id, req.user.role)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
+    if (rejectIfArchived(project, res)) return;
 
     if (req.user.role !== 'member') {
       return res.status(403).json({
@@ -167,6 +170,14 @@ export const approveStatusRequest = async (req, res) => {
     statusRequest.reviewedAt = new Date();
     await statusRequest.save();
 
+    await createNotification({
+      userId: statusRequest.requestedBy,
+      message: `Your status change for "${task.title}" was approved (${statusRequest.requestedStatus.replace('_', ' ')})`,
+      type: 'status_approved',
+      relatedTask: task._id,
+      relatedProject: project._id,
+    });
+
     const populated = await populateRequest(StatusChangeRequest.findById(statusRequest._id));
     res.json({
       success: true,
@@ -200,6 +211,15 @@ export const rejectStatusRequest = async (req, res) => {
     statusRequest.reviewedAt = new Date();
     statusRequest.reviewNote = req.body.reviewNote || '';
     await statusRequest.save();
+
+    const task = await Task.findById(statusRequest.task);
+    await createNotification({
+      userId: statusRequest.requestedBy,
+      message: `Your status change request for "${task?.title || 'a task'}" was rejected`,
+      type: 'status_rejected',
+      relatedTask: statusRequest.task,
+      relatedProject: statusRequest.project,
+    });
 
     const populated = await populateRequest(StatusChangeRequest.findById(statusRequest._id));
     res.json({

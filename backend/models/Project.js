@@ -25,11 +25,17 @@ const projectSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    status: {
+      type: String,
+      enum: ['active', 'archived'],
+      default: 'active',
+    },
   },
   { timestamps: true }
 );
 
 projectSchema.index({ createdBy: 1 });
 projectSchema.index({ members: 1 });
+projectSchema.index({ status: 1 });
 
 export default mongoose.model('Project', projectSchema);

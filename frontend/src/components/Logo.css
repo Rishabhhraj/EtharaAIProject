@@ -1,0 +1,54 @@
+.logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.logo-img {
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.logo-sm .logo-img {
+  width: 32px;
+  height: 32px;
+}
+
+.logo-md .logo-img {
+  width: 40px;
+  height: 40px;
+}
+
+.logo-lg .logo-img {
+  width: 72px;
+  height: 72px;
+}
+
+.logo-xl .logo-img {
+  width: 96px;
+  height: 96px;
+}
+
+.logo-text {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.logo-lg + .logo-text,
+.auth-logo .logo-text {
+  font-size: 1.15rem;
+}
+
+.auth-logo {
+  flex-direction: column;
+  text-align: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.auth-logo .logo-text {
+  font-size: 1.2rem;
+}

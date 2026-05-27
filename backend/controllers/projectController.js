@@ -2,6 +2,7 @@ import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import User from '../models/User.js';
 import { userCanAccessProject, userIsProjectAdmin } from '../utils/projectAccess.js';
+import { rejectIfArchived } from '../utils/projectArchived.js';
 
 export const getProjects = async (req, res) => {
   try {
@@ -80,9 +81,12 @@ export const updateProject = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only project admin can update' });
     }
 
-    const { name, description } = req.body;
+    const { name, description, status } = req.body;
     if (name) project.name = name;
     if (description !== undefined) project.description = description;
+    if (status && ['active', 'archived'].includes(status)) {
+      project.status = status;
+    }
     await project.save();
 
     await project.populate([
@@ -126,6 +130,7 @@ export const addMembers = async (req, res) => {
     if (!userIsProjectAdmin(project, req.user._id, req.user.role)) {
       return res.status(403).json({ success: false, message: 'Only project admin can manage team' });
     }
+    if (rejectIfArchived(project, res)) return;
 
     const { memberIds } = req.body;
     const users = await User.find({ _id: { $in: memberIds }, role: 'member' });
@@ -155,6 +160,7 @@ export const removeMember = async (req, res) => {
     if (!userIsProjectAdmin(project, req.user._id, req.user.role)) {
       return res.status(403).json({ success: false, message: 'Only project admin can manage team' });
     }
+    if (rejectIfArchived(project, res)) return;
 
     project.members = project.members.filter((m) => m.toString() !== req.params.memberId);
     await project.save();

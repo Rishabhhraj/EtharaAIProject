@@ -32,6 +32,14 @@ const taskSchema = new mongoose.Schema(
       },
       default: 'todo',
     },
+    priority: {
+      type: String,
+      enum: {
+        values: ['low', 'medium', 'high'],
+        message: 'Priority must be low, medium, or high',
+      },
+      default: 'medium',
+    },
     dueDate: {
       type: Date,
       default: null,
@@ -49,6 +57,7 @@ taskSchema.index({ project: 1 });
 taskSchema.index({ assignedTo: 1 });
 taskSchema.index({ dueDate: 1 });
 taskSchema.index({ status: 1 });
+taskSchema.index({ priority: 1 });
 
 taskSchema.virtual('isOverdue').get(function () {
   if (!this.dueDate || this.status === 'done') return false;

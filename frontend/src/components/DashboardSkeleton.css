@@ -1,0 +1,39 @@
+.dashboard-skeleton .skel-block {
+  height: 48px;
+  width: 40%;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius);
+}
+
+.skel-card {
+  height: 90px;
+  animation: skel-pulse 1.2s ease-in-out infinite;
+}
+
+.skel-panel {
+  height: 180px;
+  animation: skel-pulse 1.2s ease-in-out infinite;
+}
+
+.skel-table {
+  height: 220px;
+  margin-top: 1.25rem;
+  animation: skel-pulse 1.2s ease-in-out infinite;
+}
+
+.skel-card,
+.skel-panel,
+.skel-table,
+.skel-block {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes skel-pulse {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}

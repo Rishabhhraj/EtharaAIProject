@@ -2,12 +2,26 @@ import Task from '../models/Task.js';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
 import { userCanAccessProject, userIsProjectAdmin, toIdString } from '../utils/projectAccess.js';
+import { rejectIfArchived } from '../utils/projectArchived.js';
+import { createNotification } from '../utils/notify.js';
+import { sortTasksByPriorityAndDue } from '../utils/taskSort.js';
 
 const populateTask = (query) =>
   query
-    .populate('project', 'name')
+    .populate('project', 'name status')
     .populate('assignedTo', 'name email')
     .populate('createdBy', 'name email');
+
+const notifyAssignment = async (task, project, assigneeId) => {
+  if (!assigneeId) return;
+  await createNotification({
+    userId: assigneeId,
+    message: `You were assigned to task "${task.title}" in ${project.name}`,
+    type: 'assigned',
+    relatedTask: task._id,
+    relatedProject: project._id,
+  });
+};
 
 export const getTasksByProject = async (req, res) => {
   try {
@@ -20,11 +34,10 @@ export const getTasksByProject = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const tasks = await populateTask(
-      Task.find({ project: project._id }).sort('-createdAt')
-    );
+    let tasks = await populateTask(Task.find({ project: project._id }));
+    tasks = sortTasksByPriorityAndDue(tasks);
 
-    res.json({ success: true, count: tasks.length, tasks });
+    res.json({ success: true, count: tasks.length, tasks, projectStatus: project.status });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -40,8 +53,9 @@ export const createTask = async (req, res) => {
     if (!userIsProjectAdmin(project, req.user._id, req.user.role)) {
       return res.status(403).json({ success: false, message: 'Only admin can create tasks' });
     }
+    if (rejectIfArchived(project, res)) return;
 
-    const { title, description, assignedTo, status, dueDate } = req.body;
+    const { title, description, assignedTo, status, dueDate, priority } = req.body;
 
     if (assignedTo) {
       const assignee = await User.findById(assignedTo);
@@ -65,9 +79,14 @@ export const createTask = async (req, res) => {
       project: project._id,
       assignedTo: assignedTo || null,
       status: status || 'todo',
+      priority: priority || 'medium',
       dueDate: dueDate || null,
       createdBy: req.user._id,
     });
+
+    if (assignedTo) {
+      await notifyAssignment(task, project, assignedTo);
+    }
 
     const populated = await populateTask(Task.findById(task._id));
     res.status(201).json({ success: true, task: populated });
@@ -87,17 +106,20 @@ export const updateTask = async (req, res) => {
     if (!userCanAccessProject(project, req.user._id, req.user.role)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
+    if (rejectIfArchived(project, res)) return;
 
     const isAdmin = userIsProjectAdmin(project, req.user._id, req.user.role);
     const isAssignee =
       task.assignedTo && task.assignedTo.toString() === req.user._id.toString();
 
-    const { title, description, assignedTo, status, dueDate } = req.body;
+    const { title, description, assignedTo, status, dueDate, priority } = req.body;
+    const previousAssignee = task.assignedTo ? task.assignedTo.toString() : null;
 
     if (isAdmin) {
       if (title) task.title = title;
       if (description !== undefined) task.description = description;
       if (dueDate !== undefined) task.dueDate = dueDate;
+      if (priority) task.priority = priority;
       if (assignedTo !== undefined) {
         if (assignedTo) {
           const assignee = await User.findById(assignedTo);
@@ -124,6 +146,13 @@ export const updateTask = async (req, res) => {
     }
 
     await task.save();
+
+    const newAssignee = task.assignedTo ? task.assignedTo.toString() : null;
+    if (newAssignee && newAssignee !== previousAssignee) {
+      const projectDoc = await Project.findById(project._id || project);
+      await notifyAssignment(task, projectDoc, newAssignee);
+    }
+
     const populated = await populateTask(Task.findById(task._id));
     res.json({ success: true, task: populated });
   } catch (err) {
@@ -141,6 +170,7 @@ export const deleteTask = async (req, res) => {
     if (!userIsProjectAdmin(task.project, req.user._id, req.user.role)) {
       return res.status(403).json({ success: false, message: 'Only admin can delete tasks' });
     }
+    if (rejectIfArchived(task.project, res)) return;
 
     await task.deleteOne();
     res.json({ success: true, message: 'Task deleted' });

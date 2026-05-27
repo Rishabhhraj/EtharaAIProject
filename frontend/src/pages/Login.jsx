@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Logo from '../components/Logo';
+import PasswordInput from '../components/PasswordInput';
 import './Auth.css';
 
 export default function Login() {
@@ -10,6 +12,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('session') === 'expired';
 
   useEffect(() => {
     if (user) navigate('/dashboard', { replace: true });
@@ -32,8 +36,14 @@ export default function Login() {
   return (
     <div className="auth-page">
       <div className="card auth-card">
+        <Logo size="lg" className="auth-logo" />
         <h1>Welcome back</h1>
         <p className="auth-subtitle">Sign in to manage your team tasks</p>
+        {sessionExpired && (
+          <div className="alert alert-error" role="alert">
+            Session expired. Please sign in again.
+          </div>
+        )}
         {error && <div className="alert alert-error">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -49,9 +59,9 @@ export default function Login() {
           </div>
           <div className="form-group">
             <label htmlFor="password">Password</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
+              name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

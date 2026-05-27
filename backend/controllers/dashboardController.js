@@ -1,5 +1,6 @@
 import Task from '../models/Task.js';
 import Project from '../models/Project.js';
+import { sortTasksByPriorityAndDue, getDueSoonTasks } from '../utils/taskSort.js';
 
 export const getDashboard = async (req, res) => {
   try {
@@ -16,18 +17,20 @@ export const getDashboard = async (req, res) => {
     if (req.user.role === 'member') {
       taskFilter = {
         project: { $in: projectIds },
-        $or: [{ assignedTo: req.user._id }, { assignedTo: null }],
+        assignedTo: req.user._id,
       };
     }
 
-    const tasks = await Task.find(taskFilter)
-      .populate('project', 'name')
-      .populate('assignedTo', 'name email')
-      .sort('dueDate');
+    let tasks = await Task.find(taskFilter)
+      .populate('project', 'name status')
+      .populate('assignedTo', 'name email');
+
+    tasks = sortTasksByPriorityAndDue(tasks);
 
     const now = new Date();
     const statusCounts = { todo: 0, in_progress: 0, done: 0 };
     const overdue = [];
+    const dueSoon = getDueSoonTasks(tasks, 3);
 
     for (const task of tasks) {
       statusCounts[task.status]++;
@@ -46,8 +49,14 @@ export const getDashboard = async (req, res) => {
         statusCounts,
         overdueCount: overdue.length,
         overdue,
-        recentTasks: tasks.slice(-10).reverse(),
+        dueSoonCount: dueSoon.length,
+        dueSoon,
+        recentTasks: tasks.slice(0, 10),
         allTasks: tasks,
+        memberViewNote:
+          req.user.role === 'member'
+            ? 'Showing tasks assigned to you only.'
+            : null,
       },
     });
   } catch (err) {

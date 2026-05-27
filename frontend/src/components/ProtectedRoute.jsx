@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Logo from './Logo';
 
 export default function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading, isAdmin } = useAuth();
@@ -7,6 +8,7 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
   if (loading) {
     return (
       <div className="loading-screen">
+        <Logo size="lg" showText={false} />
         <div className="spinner" />
         <p>Loading...</p>
       </div>

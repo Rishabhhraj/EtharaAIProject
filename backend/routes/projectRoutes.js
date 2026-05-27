@@ -12,6 +12,7 @@ import {
 import { protect } from '../middleware/auth.js';
 import { requireAdmin, requireAdminOrMember } from '../middleware/rbac.js';
 import { validate } from '../middleware/validate.js';
+import { validateObjectId } from '../middleware/validateObjectId.js';
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.use(protect, requireAdminOrMember);
 
 router.get('/', getProjects);
 
-router.get('/:id', getProject);
+router.get('/:id', validateObjectId('id'), getProject);
 
 router.post(
   '/',
@@ -35,22 +36,33 @@ router.post(
 
 router.put(
   '/:id',
+  validateObjectId('id'),
   requireAdmin,
-  [body('name').optional().trim().notEmpty(), body('description').optional().trim()],
+  [
+    body('name').optional().trim().notEmpty(),
+    body('description').optional().trim(),
+    body('status').optional().isIn(['active', 'archived']),
+  ],
   validate,
   updateProject
 );
 
-router.delete('/:id', requireAdmin, deleteProject);
+router.delete('/:id', validateObjectId('id'), requireAdmin, deleteProject);
 
 router.post(
   '/:id/members',
+  validateObjectId('id'),
   requireAdmin,
   [body('memberIds').isArray({ min: 1 }).withMessage('memberIds array is required')],
   validate,
   addMembers
 );
 
-router.delete('/:id/members/:memberId', requireAdmin, removeMember);
+router.delete(
+  '/:id/members/:memberId',
+  validateObjectId('id', 'memberId'),
+  requireAdmin,
+  removeMember
+);
 
 export default router;

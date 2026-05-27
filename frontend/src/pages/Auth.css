@@ -23,6 +23,12 @@
   font-size: 0.95rem;
 }
 
+.field-hint {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .auth-footer {
   margin-top: 1.25rem;
   text-align: center;

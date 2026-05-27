@@ -2,6 +2,20 @@
   text-align: center;
 }
 
+.stat-warning .stat-value {
+  color: var(--warning);
+}
+
+.dashboard-note {
+  font-size: 0.85rem;
+  color: var(--primary);
+  margin-top: 0.35rem;
+}
+
+.dashboard-grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
 .stat-label {
   display: block;
   font-size: 0.85rem;

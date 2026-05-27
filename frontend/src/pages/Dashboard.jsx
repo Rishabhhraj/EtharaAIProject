@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import Layout from '../components/Layout';
+import DashboardSkeleton from '../components/DashboardSkeleton';
 import './Dashboard.css';
 
 function StatusBar({ label, count, total, color }) {
@@ -20,37 +22,53 @@ function StatusBar({ label, count, total, color }) {
   );
 }
 
+function daysUntil(dueDate) {
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+}
+
 export default function Dashboard() {
   const { user, isAdmin } = useAuth();
+  const { showError } = useToast();
   const [data, setData] = useState(null);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api
       .getDashboard()
       .then((res) => setData(res.dashboard))
-      .catch((err) => setError(err.message))
+      .catch((err) => showError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showError]);
 
   if (loading) {
     return (
       <Layout>
-        <div className="loading-inline">Loading dashboard...</div>
+        <DashboardSkeleton />
       </Layout>
     );
   }
 
-  if (error) {
+  if (!data) {
     return (
       <Layout>
-        <div className="alert alert-error">{error}</div>
+        <p className="empty-hint">Unable to load dashboard.</p>
       </Layout>
     );
   }
 
-  const { projectCount, totalTasks, statusCounts, overdue, recentTasks } = data;
+  const {
+    projectCount,
+    totalTasks,
+    statusCounts,
+    overdue,
+    dueSoon = [],
+    recentTasks,
+    memberViewNote,
+  } = data;
 
   return (
     <Layout>
@@ -58,8 +76,12 @@ export default function Dashboard() {
         <div>
           <h1>Dashboard</h1>
           <p>
-            Hello, {user?.name} — {isAdmin ? 'manage projects and teams' : 'track your assigned tasks'}
+            Hello, {user?.name} —{' '}
+            {isAdmin
+              ? 'manage projects and teams'
+              : 'tasks assigned to you only'}
           </p>
+          {memberViewNote && <p className="dashboard-note">{memberViewNote}</p>}
         </div>
         {isAdmin && (
           <Link to="/projects" className="btn btn-primary">
@@ -81,9 +103,13 @@ export default function Dashboard() {
           <span className="stat-label">Overdue</span>
           <span className="stat-value">{overdue.length}</span>
         </div>
+        <div className="card stat-card stat-warning">
+          <span className="stat-label">Due in 3 days</span>
+          <span className="stat-value">{dueSoon.length}</span>
+        </div>
       </div>
 
-      <div className="dashboard-grid">
+      <div className="dashboard-grid dashboard-grid-3">
         <div className="card">
           <h2 className="section-title">Task status overview</h2>
           <StatusBar label="To Do" count={statusCounts.todo} total={totalTasks} color="#8b9cb3" />
@@ -94,6 +120,28 @@ export default function Dashboard() {
             color="#f59e0b"
           />
           <StatusBar label="Done" count={statusCounts.done} total={totalTasks} color="#22c55e" />
+        </div>
+
+        <div className="card">
+          <h2 className="section-title">Due soon (3 days)</h2>
+          {dueSoon.length === 0 ? (
+            <p className="empty-hint">Nothing due in the next 3 days.</p>
+          ) : (
+            <ul className="task-list compact">
+              {dueSoon.map((t) => (
+                <li key={t._id}>
+                  <Link to={`/projects/${t.project._id || t.project}`}>
+                    <strong>{t.title}</strong>
+                  </Link>
+                  <span className={`badge badge-${t.priority}`}>{t.priority}</span>
+                  <span className="task-meta">
+                    Due in {daysUntil(t.dueDate)} day(s) —{' '}
+                    {new Date(t.dueDate).toLocaleDateString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="card">
@@ -119,7 +167,7 @@ export default function Dashboard() {
       </div>
 
       <div className="card" style={{ marginTop: '1.25rem' }}>
-        <h2 className="section-title">Recent tasks</h2>
+        <h2 className="section-title">Tasks by priority</h2>
         {recentTasks.length === 0 ? (
           <p className="empty-hint">No tasks yet.</p>
         ) : (
@@ -129,6 +177,7 @@ export default function Dashboard() {
                 <tr>
                   <th>Task</th>
                   <th>Project</th>
+                  <th>Priority</th>
                   <th>Status</th>
                   <th>Assignee</th>
                   <th>Due</th>
@@ -142,7 +191,14 @@ export default function Dashboard() {
                     </td>
                     <td>{t.project?.name || '—'}</td>
                     <td>
-                      <span className={`badge badge-${t.status}`}>{t.status.replace('_', ' ')}</span>
+                      <span className={`badge badge-${t.priority || 'medium'}`}>
+                        {t.priority || 'medium'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge badge-${t.status}`}>
+                        {t.status.replace('_', ' ')}
+                      </span>
                     </td>
                     <td>{t.assignedTo?.name || 'Unassigned'}</td>
                     <td>{t.dueDate ? new Date(t.dueDate).toLocaleDateString() : '—'}</td>

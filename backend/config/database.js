@@ -4,8 +4,8 @@ let memoryServer = null;
 
 export async function connectDatabase() {
   const useEmbedded =
-    process.env.USE_EMBEDDED_MONGO === 'true' ||
-    process.env.MONGODB_URI === 'embedded';
+    process.env.NODE_ENV !== 'production' &&
+    (process.env.USE_EMBEDDED_MONGO === 'true' || process.env.MONGODB_URI === 'embedded');
 
   if (useEmbedded) {
     const { MongoMemoryServer } = await import('mongodb-memory-server');
